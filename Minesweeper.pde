@@ -4,6 +4,7 @@ public static final int NUM_COLS = 24;
 public static final int NUM_MINES = 60;
 public static final int WINDOW_W = 720;
 public static final int WINDOW_H = 720;
+public static final int SIDEBAR_W = 160;
 private MSButton[][] buttons;
 private ArrayList<MSButton> mines = new ArrayList<MSButton>();
 private boolean gameOver = false;
@@ -12,10 +13,13 @@ private boolean minesPlaced = false;
 private long gameStartTime = 0;
 private String gameOverMessage = null;
 private int gameOverTimeSeconds = 0;
+private int score = 0;
+private int combo = 0;
+private int highScore = 0;
 
 void setup ()
 {
-    size(WINDOW_W, WINDOW_H);
+    size(WINDOW_W + SIDEBAR_W, WINDOW_H);
     textAlign(CENTER, CENTER);
     
     Interactive.make( this );
@@ -56,16 +60,40 @@ public void setMines(int safeRow, int safeCol)
 public void draw ()
 {
     background(192);
+    drawSidebar();
     if (!won && isWon()) {
         won = true;
         displayWinningMessage();
     }
 }
 
+private void drawSidebar() {
+    int sx = WINDOW_W;
+    fill(220);
+    stroke(140);
+    strokeWeight(1);
+    rect(sx, 0, SIDEBAR_W, WINDOW_H);
+    noStroke();
+    fill(0);
+    textAlign(CENTER, CENTER);
+    textSize(16);
+    text("Score", sx + SIDEBAR_W/2, 50);
+    textSize(24);
+    text("" + score, sx + SIDEBAR_W/2, 85);
+    textSize(16);
+    text("Combo", sx + SIDEBAR_W/2, 130);
+    textSize(24);
+    text("x" + combo, sx + SIDEBAR_W/2, 165);
+    textSize(16);
+    text("High Score", sx + SIDEBAR_W/2, 210);
+    textSize(24);
+    text("" + highScore, sx + SIDEBAR_W/2, 245);
+}
+
 private void drawGameOverPopup()
 {
     int popupW = 320;
-    int popupH = 180;
+    int popupH = 220;
     int cx = width / 2;
     int cy = height / 2;
     int x = cx - popupW/2;
@@ -81,16 +109,18 @@ private void drawGameOverPopup()
     fill(0);
     textAlign(CENTER, CENTER);
     textSize(28);
-    text(gameOverMessage, cx, cy - 35);
+    text(gameOverMessage, cx, cy - 50);
     textSize(18);
-    text("Time: " + gameOverTimeSeconds + " seconds", cx, cy);
+    text("Time: " + gameOverTimeSeconds + " seconds", cx, cy - 15);
+    text("Score: " + score, cx, cy + 15);
+    text("High Score: " + highScore, cx, cy + 40);
     fill(220);
     stroke(100);
-    rect(cx - 50, cy + 45, 100, 36);
+    rect(cx - 50, cy + 65, 100, 36);
     fill(0);
     noStroke();
     textSize(18);
-    text("Retry", cx, cy + 63);
+    text("Retry", cx, cy + 83);
 }
 
 public void resetGame()
@@ -99,6 +129,8 @@ public void resetGame()
     won = false;
     gameOverMessage = null;
     minesPlaced = false;
+    score = 0;
+    combo = 0;
     mines.clear();
     for (int r = 0; r < NUM_ROWS; r++) {
         for (int c = 0; c < NUM_COLS; c++) {
@@ -113,7 +145,7 @@ public void resetGame()
 private class PopupOverlay {
     public float x = 0;
     public float y = 0;
-    public float width = WINDOW_W;
+    public float width = WINDOW_W + SIDEBAR_W;
     public float height = WINDOW_H;
     public void draw() {
         if (gameOverMessage != null) {
@@ -123,8 +155,8 @@ private class PopupOverlay {
 }
 
 private class RetryButton {
-    public float x = WINDOW_W/2 - 50;
-    public float y = WINDOW_H/2 + 45;
+    public float x = (WINDOW_W + SIDEBAR_W)/2 - 50;
+    public float y = WINDOW_H/2 + 65;
     public float width = 100;
     public float height = 36;
     public boolean isInside(float mx, float my) {
@@ -163,6 +195,7 @@ public boolean isWon()
 }
 public void displayLosingMessage()
 {
+    if (score > highScore) highScore = score;
     gameOver = true;
     for (MSButton m : mines) {
         m.setClicked(true);
@@ -172,6 +205,7 @@ public void displayLosingMessage()
 }
 public void displayWinningMessage()
 {
+    if (score > highScore) highScore = score;
     gameOver = true;
     gameOverMessage = "You Win!";
     gameOverTimeSeconds = (int)((millis() - gameStartTime) / 1000);
@@ -214,18 +248,31 @@ public class MSButton
 
     public void mousePressed () 
     {
+        mousePressed(false);
+    }
+
+    public void mousePressed (boolean fromRecursion) 
+    {
         if (gameOver) return;
         if (mouseButton == RIGHT) {
             if (!minesPlaced) return;
+            if (clicked) return;  // only flag/unflag covered squares
             flagged = !flagged;
-            clicked = !flagged;
         } else {
+            if (flagged) return;
+            if (!fromRecursion && clicked) {
+                combo = 0;
+                return;
+            }
+            if (!fromRecursion) {
+                combo++;
+                score += 10 * combo;
+            }
             if (!minesPlaced) {
                 setMines(myRow, myCol);
                 minesPlaced = true;
                 gameStartTime = millis();
             }
-            if (flagged) return;
             clicked = true;
             if (mines.contains(this)) {
                 displayLosingMessage();
@@ -237,7 +284,7 @@ public class MSButton
                     for (int r = myRow - 1; r <= myRow + 1; r++) {
                         for (int c = myCol - 1; c <= myCol + 1; c++) {
                             if (isValid(r, c) && !buttons[r][c].isClicked() && !buttons[r][c].isFlagged()) {
-                                buttons[r][c].mousePressed();
+                                buttons[r][c].mousePressed(true);
                             }
                         }
                     }
